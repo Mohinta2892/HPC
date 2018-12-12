@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
         }
         row_offset = ((nx/size)*(size-1))-1;
         nrows_for_ranks = nx-((nx/size)*(size-1))+1;
-        for (int j = 0; j < colsSend; j++) {
+        for (int j = 0; j < nrows_for_ranks; j++) {
           MPI_Send(&image[(row_offset+j)*ny], ny, MPI_FLOAT, size-1, tag, MPI_COMM_WORLD);
         }
 
@@ -114,8 +114,8 @@ int main(int argc, char *argv[]) {
         }
 
         // Receive chunks from cores
-        for (int i = 1; i < size-1; r++) {
-            for (int i = 0; i < nx/size; j++) {
+        for (int i = 1; i < size-1; i++) {
+            for (int j = 0; j < nx/size; j++) {
                 MPI_Recv(&image[(j+(i*(nx/size)))*ny], BUFSIZ, MPI_FLOAT, i, tag, MPI_COMM_WORLD, &status);
             }
         }
@@ -127,19 +127,19 @@ int main(int argc, char *argv[]) {
            }
 	 else {
         // Receive chunk from core 0
-        for (int j = 0; j < cols; j++) {
+        for (int j = 0; j < nrows; j++) {
             MPI_Recv(&w[j*ny], BUFSIZ, MPI_FLOAT, 0, tag, MPI_COMM_WORLD, &status);
         }
 
-        // Each rank calls stencil independently
-        tic = wtime();
+        // Call the stencil kernel
+        double tic = wtime();
         for (int t = 0; t < niters; ++t) {
           halo_exchange(rank, size, nrows, w, ny);
           stencil(nrows, ny, w, u);
           halo_exchange(rank, size, nrows, u, ny);
           stencil(nrows, ny, u, w);
         }
-        toc = wtime();
+        double toc = wtime();
 
         // Send chunk back to master
        if (rank == size-1) {
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
             row_offset = 1;
             nrows_for_ranks = nrows - 2;
         }
-        for (int j = 0; j < nrows_for_ranks; i++) {
+        for (int j = 0; j < nrows_for_ranks; j++) {
             MPI_Send(&w[(row_offset+j)*ny], ny, MPI_FLOAT, 0, tag, MPI_COMM_WORLD);
         }
 
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
         
     MPI_Finalize(); /* finialise the MPI enviroment */
     
-    	  _mm_free(image);
+    	_mm_free(image);
         _mm_free(tmp_image);
         _mm_free(w);
         _mm_free(u);
@@ -190,7 +190,6 @@ void halo_exchange(int rank, int size, int local_nrows, float * w, int ny) {
 }
 
 void stencil(const int nx, const int ny, float * restrict image, float * restrict tmp_image) {
-// traverses column wise - test and change
    int i,j;
  for (i=1;i<nx-1;++i){
       for(j=1;j<ny-1;++j) {
